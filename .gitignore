@@ -1,6 +1,6 @@
 
-.codegpt
-._pycache_
-.venv
-.vscode
+.codegpt/
+._pycache_/
+.venv/
+.vscode/
 .env
