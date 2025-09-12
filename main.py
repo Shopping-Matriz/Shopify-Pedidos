@@ -2,6 +2,7 @@
 
 import time
 import schedule
+from sqlalchemy import Case, desc
 
 from auxiliar import *
 from shopify_service import *
@@ -13,44 +14,64 @@ def integrar_pedidos():
     pedidos = pegar_pedidos_pagos(first=125)
     if not pedidos:
         print(f"{BOLD}{YELLOW}\n🟡 Sem pedidos para integrar {RESET}")
+        print("\n\n⏳ Aguardando próximas execuções...")
         return
+    print(f"{BOLD}{GREEN}\n 💬 Iniciando integração de pedidos... {RESET}")
     for pedido in pedidos:
         dados_pedido = pedido["node"]
-        pedidos_importado = verifica_pedido_importado(dados_pedido["name"])
+        pedidos_importado = verifica_pedido_importado(dados_pedido["name"].lstrip("#"))
+        cd_pedido_shopify = dados_pedido["name"]
         if pedidos_importado:
-            nome_pedido = dados_pedido["name"]
-            print(f"{BOLD}{YELLOW} - pedido [{nome_pedido}] já importado{RESET}")
+            print(
+                f"{BOLD}{YELLOW}\n ! pedido [{cd_pedido_shopify}] já importado{RESET}"
+            )
             continue
+        info_pagamento = dados_pedido["transactions"][0]
+        gateway_pagamento = info_pagamento["gateway"]
+        info_envio = dados_pedido["shippingLine"]
         # ---------------------------//// Cliente ////----------------------------
         dados_cliente = dados_pedido["customer"]
         cliente_cpf_cnpj = dados_pedido["localizedFields"]["nodes"][0]["value"]
         cpf_cnpj_formatado = formatar_cpf_cnpj(cliente_cpf_cnpj)
-        if cliente_cpf_cnpj:
-            id_pessoa = verifica_cliente(cliente_cpf_cnpj)
+        tp_cliente = verificar_tipo_cliente(cliente_cpf_cnpj)
+        dados_endereco_entrega = dados_pedido["shippingAddress"]
+        if not dados_endereco_entrega:
+            dados_endereco_entrega = dados_pedido["billingAddress"]
+        if tp_cliente == "F":
+            nome_cliente = dados_cliente["displayName"].upper()
+        elif tp_cliente == "J":
+            nome_cliente = (
+                dados_endereco_entrega.get("company").upper()
+                or dados_cliente["displayName"].upper()
+            )
+        else:
+            nome_cliente = dados_cliente["displayName"].upper()
+        if cpf_cnpj_formatado:
+            id_pessoa = verifica_cliente(cpf_cnpj_formatado)
             if not id_pessoa:
                 prox_cliente = pega_prox_ident_cod("Pessoa", "IdPessoa", "IdPessoa")
-                tp_cliente = verificar_tipo_cliente(cliente_cpf_cnpj)
                 cadastra_cliente(
                     prox_cliente[0],
                     prox_cliente[1],
-                    dados_cliente["displayName"].upper(),
+                    nome_cliente,
                     cpf_cnpj_formatado,
                     tp_cliente,
                 )
                 id_pessoa = prox_cliente[0]
         else:
-            cd_pedido_shopify = dados_pedido["name"]
-            print(f"{RED} ❗ Pedido [{cd_pedido_shopify}] sem cliente {RESET}")
+            print(f"{RED} ! Pedido [{cd_pedido_shopify}] sem cliente {RESET}")
             continue
         # ----------------//// Cep, Endereço ,Cidade, Estado, Bairro e contato ////------------------
-        dados_endereco_entrega = dados_pedido["shippingAddress"]
-        # --// Cep //--
         dados_cep = verifica_cep(dados_endereco_entrega["zip"])
+        nm_logradouro_cep = dados_cep[2] if dados_cep else None
         if dados_cep:
-            id_bairro = dados_cep[0]
-            id_cidade = dados_cep[1]
-            nm_logradouro = dados_cep[2]
+            id_bairro = dados_cep[0] if dados_cep else None
+            id_cidade = dados_cep[1] if dados_cep else None
+            nm_logradouro = dados_cep[2] if dados_cep else None
         else:
+            dados_cep = obter_dados_cep(
+                re.sub(r"\D", "", dados_endereco_entrega["zip"])
+            )
             # --// cidade, estado //--
             id_cidade = verifica_cidade(
                 dados_endereco_entrega["city"], dados_endereco_entrega["provinceCode"]
@@ -65,9 +86,6 @@ def integrar_pedidos():
                 )
                 id_cidade = prox_cidade[0]
             # --// Bairro //--
-            dados_cep = obter_dados_cep(
-                re.sub(r"\D", "", dados_endereco_entrega["zip"])
-            )
             id_bairro = verifica_bairro(dados_cep["bairro"].upper())
             if not id_bairro:
                 prox_bairo = pega_prox_ident_cod("Bairro", "IdBairro", "IdBairro")
@@ -77,19 +95,36 @@ def integrar_pedidos():
                 id_bairro = prox_bairo[0]
         # --// endereço e contato //--
         nr_logradouro = extrair_numero_endereco(dados_endereco_entrega["address1"])
-        nm_logradouro = nm_logradouro or extrair_nome_endereco(
+        nm_logradouro = nm_logradouro_cep or extrair_nome_endereco(
             dados_endereco_entrega["address1"]
         )
-        # print(dados_endereco_entrega["address2"])
-        # print(nr_logradouro)
+        endereco_2 = dados_endereco_entrega.get("address2", "") or ""
+        complemento = endereco_2.split(",", 1)[0].strip()
         cd_endereco = verifica_endereco(
-            id_pessoa,
-            dados_endereco_entrega["zip"],
-            nr_logradouro,
-            dados_endereco_entrega.get("address2", {}) or "",
+            id_pessoa, dados_endereco_entrega["zip"], nm_logradouro, nr_logradouro
         )
-        # break
         id_contato = verifica_contato(id_pessoa, dados_cliente["displayName"].upper())
+        if not id_contato:
+            prox_contato = pega_prox_ident(
+                "PessoaEndereco_Contato",
+                "IdPessoaEndereco_Contato",
+                "IdPessoaEndereco_Contato",
+            )
+            if not cd_endereco:
+                cd_endereco_contato = pega_prox_coc_endereco(id_pessoa)
+            id_contato = prox_contato
+            cadastra_tipo_contato(
+                id_contato,
+                cd_endereco_contato,
+                id_pessoa,
+                (dados_cliente.get("defaultEmailAddress") or {}).get("emailAddress", "")
+                or "",
+                (dados_endereco_entrega.get("phone") or "").replace("+55", "", 1)
+                or (dados_cliente.get("defaultPhoneNumber") or {}).get(
+                    "phoneNumber", ""
+                )
+                or "",
+            )
         if not cd_endereco:
             prox_endereco = pega_prox_coc_endereco(id_pessoa)
             cadastra_endereco(
@@ -98,7 +133,7 @@ def integrar_pedidos():
                 id_pessoa,
                 nm_logradouro.upper(),
                 nr_logradouro,
-                dados_endereco_entrega["address2"].upper(),
+                complemento,
                 dados_endereco_entrega["zip"],
                 id_bairro,
                 cpf_cnpj_formatado,
@@ -117,38 +152,58 @@ def integrar_pedidos():
                 id_contato,
                 cd_endereco,
                 id_pessoa,
-                dados_cliente.get("defaultEmailAddress", {}).get("emailAddress", "")
+                (dados_cliente.get("defaultEmailAddress") or {}).get("emailAddress", "")
                 or "",
-                dados_cliente.get("defaultPhoneNumber", {}).get("phoneNumber", "")
+                (dados_endereco_entrega.get("phone") or "").replace("+55", "", 1)
+                or (dados_cliente.get("defaultPhoneNumber") or {}).get(
+                    "phoneNumber", ""
+                )
                 or "",
             )
-        else:
-            atualiza_endereco(
-                nm_logradouro.upper(),
-                nr_logradouro,
-                dados_endereco_entrega["address2"],
-                dados_endereco_entrega["zip"],
-                id_bairro,
-                cpf_cnpj_formatado,
-                id_cidade,
-                dados_endereco_entrega["provinceCode"],
-                dados_cliente["displayName"].upper(),
-                id_pessoa,
-                cd_endereco,
-                dados_cliente["displayName"].upper(),
-                id_contato,
-            )
+        # else:
+        #     atualiza_endereco(
+        #         nm_logradouro.upper(),
+        #         nr_logradouro,
+        #         dados_endereco_entrega["address2"],
+        #         dados_endereco_entrega["zip"],
+        #         id_bairro,
+        #         cpf_cnpj_formatado,
+        #         id_cidade,
+        #         dados_endereco_entrega["provinceCode"],
+        #         dados_cliente["displayName"].upper(),
+        #         id_pessoa,
+        #         cd_endereco,
+        #         nome_cliente,
+        #         id_contato,
+        #     )
         # --------------------/// Pedido ///----------------
         if tp_cliente == "F":
             id_setor_endereco = "00A0000046"
             cd_empresa = "1000"
         else:
-            id_setor_endereco = "00A00000BA"
-            cd_empresa = "424"
+            id_setor_endereco = "00A00000E6"
+            cd_empresa = "432"
         dt_emissao = converter_data_sql_server(dados_pedido["createdAt"])
         prox_pedido = pega_prox_ident_cod(
             "PedidoDeVenda", "IdPedidoDeVenda", "IdPedidoDeVenda"
         )
+        obs_cliente = (
+            dados_pedido["note"]
+            if dados_pedido["note"]
+            else "Sem observações do Cliente"
+        )
+        obs_pagamento = (
+            f"{gateway_pagamento} {info_pagamento.get('paymentDetails', {}).get('company','')}({info_pagamento.get('paymentDetails', {}).get('number','')[-4:]})"
+            if gateway_pagamento and "cartão" in gateway_pagamento.lower()
+            else gateway_pagamento
+        )
+        titulo = info_envio.get("title", "Sem info")
+
+        if titulo.lower() != "frete próprio":
+            obs_retirada = f"retirada - {titulo}"
+        else:
+            obs_retirada = titulo
+        obs_pedido = f"OBS CLIENTE: {obs_cliente.upper()}\n{obs_pagamento.upper()}\n{obs_retirada.upper()}"
         insere_pedido_venda(
             prox_pedido[0],
             prox_pedido[1],
@@ -156,47 +211,66 @@ def integrar_pedidos():
             id_pessoa,
             cd_endereco,
             dt_emissao,
-            cd_pedido_shopify,
+            cd_pedido_shopify.lstrip("#"),
             id_setor_endereco,
-            dados_pedido["note"],
+            obs_pedido,
+            dados_cliente["displayName"].upper()
+            + " - "
+            + (dados_endereco_entrega.get("phone") or "").replace("+55", "", 1),
         )
         # --------------------/// Itens ///----------------
+        vl_total = float(
+            dados_pedido.get("subtotalPriceSet", {})
+            .get("shopMoney", {})
+            .get("amount", 0)
+        )
         itens = dados_pedido["lineItems"]["edges"]
         itens_filtrados = [
-            item
-            for item in itens
-            if item["node"]["id"] != "gid://shopify/LineItem/14758265225298"
+            item for item in itens if item["node"]["title"] != "Serviço de Montagem"
         ]
-
         itens_montagen = [
-            item
-            for item in itens
-            if item["node"]["id"] == "gid://shopify/LineItem/14758265225298"
+            item for item in itens if item["node"]["title"] == "Serviço de Montagem"
         ]
-
         qtd_itens = len(itens_filtrados)
-
-        vl_frete_total = pedido["totalShippingPriceSet"]["shopmoney"]["amount"]
-        vl_desconto_total = pedido["totalDiscountsSet"]["presentmentMoney"]["amount"]
-        vl_outros_total = sum(
+        vl_frete_total = float(
+            dados_pedido.get("totalShippingPriceSet", {})
+            .get("shopMoney", {})
+            .get("amount", 0)
+        )
+        vl_desconto_total = float(
+            dados_pedido.get("totalDiscountsSet", {})
+            .get("presentmentMoney", {})
+            .get("amount", 0)
+        )
+        if gateway_pagamento == "Pagar.me - PIX":
+            vl_desconto_total = vl_desconto_total + 0.09 * vl_total
+        vl_outros_total = (
             float(
-                item["node"]["discountedUnitPriceAfterAllDiscountsSet"][
+                itens_montagen[0]["node"]["discountedUnitPriceAfterAllDiscountsSet"][
                     "presentmentMoney"
                 ]["amount"]
             )
-            for item in itens_montagen
+            * float(itens_montagen[0]["node"]["quantity"])
+            if itens_montagen
+            else 0
         )
-
         vl_frete_parcial = vl_frete_total / qtd_itens if qtd_itens > 0 else 0
         vl_desconto_parcial = vl_desconto_total / qtd_itens if qtd_itens > 0 else 0
-        vl_outros_parcial = vl_outros_total / qtd_itens if qtd_itens > 0 else 0
-
+        vl_outros_parcial = float(vl_outros_total) / qtd_itens if qtd_itens > 0 else 0
         for item in itens:
             dados_item = item["node"]
-            if dados_item["id"] == "gid://shopify/LineItem/14758265225298":
+            if dados_item["title"] == "Serviço de Montagem":
                 continue
             kit = verifica_produto_kit(dados_item["sku"])
-            if kit is True:
+            variant_compare_at_price = float(
+                dados_item["variant"]["compareAtPrice"] or 0
+            )
+            variant_price = float(dados_item["variant"]["price"] or 0)
+            if (variant_compare_at_price - variant_price) > 0:
+                desconto_item = variant_compare_at_price - variant_price
+            else:
+                desconto_item = 0
+            if kit == True:
                 itens_composicao = pega_composicao_produto(dados_item["sku"])
                 qtd_itens_composicao = len(itens_composicao)
                 vl_acrescimo_rateado = (
@@ -205,7 +279,8 @@ def integrar_pedidos():
                     else 0
                 )
                 vl_desconto_rateado = (
-                    vl_desconto_parcial / qtd_itens_composicao
+                    (vl_desconto_parcial + desconto_item * item["node"]["quantity"])
+                    / qtd_itens_composicao
                     if qtd_itens_composicao > 0
                     else 0
                 )
@@ -222,11 +297,11 @@ def integrar_pedidos():
                     )
                     insere_pedido_venda_item(
                         prox_pedido[0],
-                        prox_item[0],
+                        prox_item,
                         id_bimer,
-                        item["quantity"] * qtd,
+                        item["node"]["quantity"] * qtd,
                         vl,
-                        vl * item["quantity"] * qtd,
+                        vl * item["node"]["quantity"] * qtd,
                         vl_acrescimo_rateado,
                         vl_desconto_rateado,
                         vl_despesas_rateado,
@@ -240,12 +315,14 @@ def integrar_pedidos():
                     "PedidoDeVendaItem", "IdPedidoDeVendaItem", "IdPedidoDeVendaItem"
                 )
                 vl_acrescimo_rateado = vl_frete_parcial
-                vl_desconto_rateado = vl_desconto_parcial
+                vl_desconto_rateado = (
+                    vl_desconto_parcial + desconto_item * item["node"]["quantity"]
+                )
                 vl_despesas_rateado = vl_outros_parcial
                 dados_produto = pega_dados_produto(item["node"]["sku"])
                 insere_pedido_venda_item(
                     prox_pedido[0],
-                    prox_item[0],
+                    prox_item,
                     dados_produto[0],
                     item["node"]["quantity"],
                     dados_produto[3],
@@ -258,17 +335,23 @@ def integrar_pedidos():
                     dados_produto[1],
                     dados_produto[2],
                 )
-        adicionar_tag_integrado(dados_pedido["id"])
+        # --------------------/// Pagamento ///----------------
+        # add cod_pagamentpo_aux.txt se for adicionar pagamentos na integração
+        if "cartão" in gateway_pagamento.lower():
+            eh_cartão = 1
+        else:
+            eh_cartão = 0
+        print(
+            f"{BOLD}{GREEN}\n ✔ pedido [{cd_pedido_shopify}] integrado com sucesso{RESET}"
+        )
+        adicionar_tag_integrado(dados_pedido["id"], eh_cartão)
+    print("\n\n⏳ Aguardando próximas execuções...")
 
+# ______________________________/// Inicialização / Agendamento ///____________________________________
 
-# Executa imediatamente
 print("\n🔰 Sistema de integração iniciado ")
 integrar_pedidos()
-
-# Agendar a função para rodar a cada 10 minutos
-schedule.every(10).minutes.do(integrar_pedidos)
-
-print("\n⏳ Aguardando próximas execuções...")
+schedule.every(10).minutes.do(integrar_pedidos) # <-- Agendar a função para rodar a cada 10 minutos
 while True:
     schedule.run_pending()
-    time.sleep(1)
+    time.sleep(1)   

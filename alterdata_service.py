@@ -1,6 +1,7 @@
 """Módulo cominicação com o BD (Altredata)"""
 
 import pyodbc
+from sqlalchemy import true
 from config import DB_CONFIG
 
 
@@ -44,7 +45,7 @@ def pega_prox_ident(nm_tabela, nm_identificador_1, nm_identificador_2):
             (nm_tabela, nm_identificador_1, nm_identificador_2),
         )
         row = cursor.fetchone()
-        print(row)  # -- Testar
+        # print(row)  # -- Testar
         return row[0] if row else None
     finally:
         conn.close()
@@ -75,7 +76,7 @@ def pega_prox_ident_cod(nm_tabela, nm_identificador_1, nm_identificador_2):
             (nm_tabela, nm_identificador_1, nm_identificador_2),
         )
         row = cursor.fetchone()
-        print(row)  # -- Testar
+        # print(row)  # -- Testar
         return row if row else None
     finally:
         conn.close()
@@ -97,7 +98,7 @@ def pega_prox_coc_endereco(id_pessoa):
             (id_pessoa),
         )
         row = cursor.fetchone()
-        print(row[0])  # -- Testar
+        # print(row[0])  # -- Testar
         return row[0] if row else None
     finally:
         conn.close()
@@ -109,7 +110,7 @@ def pega_prox_coc_endereco(id_pessoa):
 
 # pega_prox_ident_cod("Pessoa","IdPessoa","IdPessoa")  # Testar pega prox ident. e cod.
 
-# pega_prox_coc_endereco("00A000MJ8D")  # Testar pega prox código endereço.
+# pega_prox_coc_endereco("00A000N1GL")  # Testar pega prox código endereço.
 
 # pega_prox_ident("PedidoDeVendaItem","IdPedidoDeVendaItem","IdPedidoDeVendaItem")  # Testar pega prox ident de item
 
@@ -125,7 +126,7 @@ def verifica_cliente(cpf_cnpj):
         cursor.execute(
             """
             SELECT TOP 1 P.IdPessoa as Identificador, P.CdChamada as Codigo, P.NmPessoa as Nome, P.CdCPF_CGC as CpfCnpj, 
-            CASE WHEN IsNull(P.TpPessoa, 'J') = 'F' THEN 0 ELSE 1 END as Tipo, PETC.DsContato 
+            CASE WHEN IsNull(P.TpPessoa, 'J') = 'F' THEN 0 ELSE 1 END as Tipo, ISNULL(PETC.DsContato,'Sem info') 
             FROM Pessoa P (NoLock)
             LEFT OUTER JOIN PessoaEndereco PE (NoLock) ON (P.IdPessoa = PE.IdPessoa) AND (IsNull(PE.StEnderecoPrincipal, 'N') = 'S')
             LEFT OUTER JOIN PessoaEndereco_Contato PEC (NoLock) ON (PE.IdPessoa = PEC.IdPessoa) AND (PE.CdEndereco = PEC.CdEndereco) AND (IsNull(PEC.StContatoPrincipal, 'N') = 'S')
@@ -136,7 +137,7 @@ def verifica_cliente(cpf_cnpj):
             (cpf_cnpj),
         )
         row = cursor.fetchone()
-        print(f"{row}" if row else "Cliente não encontrado.")  # -- Testar
+        # print(f"{row}" if row else "Cliente não encontrado.")  # -- Testar
         return row[0] if row else None
     finally:
         conn.close()
@@ -154,7 +155,7 @@ def verifica_bairro(bairro):
             (bairro),
         )
         row = cursor.fetchone()
-        print(f"{row[0]}" if row else "Bairro não encontrado.")  # -- Testar
+        # print(f"{row[0]}" if row else "Bairro não encontrado.")  # -- Testar
         return row[0] if row else None
     finally:
         conn.close()
@@ -172,13 +173,13 @@ def verifica_cidade(cidade, uf):
             (cidade, uf),
         )
         row = cursor.fetchone()
-        print(f"{row[0]}" if row else "Cidade não encontrada.")  # -- Testar
+        # print(f"{row[0]}" if row else "Cidade não encontrada.")  # -- Testar
         return row[0] if row else None
     finally:
         conn.close()
 
 
-def verifica_endereco(id_pessoa, cd_cep, nr_logradouro, ds_complemento):
+def verifica_endereco(id_pessoa, cd_cep, nm_logradouro, nr_logradouro):
     """Verifica se o endereço já existe no banco. Retorna CdEndereco"""
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -192,13 +193,13 @@ def verifica_endereco(id_pessoa, cd_cep, nr_logradouro, ds_complemento):
             WHERE 
                 RTRIM(LTRIM(IdPessoa)) = ? and 
                 RTRIM(LTRIM(CdCEP)) = ? and 
-                RTRIM(LTRIM(NrLogradouro)) = ? and
-                RTRIM(LTRIM(coalesce(DsComplemento, ''))) = coalesce(?, '')
+                RTRIM(LTRIM(NmLogradouro)) = ? and
+                RTRIM(LTRIM(NrLogradouro)) = ?
             """,
-            (id_pessoa, cd_cep, nr_logradouro, ds_complemento),
+            (id_pessoa, cd_cep, nm_logradouro, nr_logradouro),
         )
         row = cursor.fetchone()
-        print(f"{row[0]}" if row else "Endereço não encontrado.")  # -- Testar
+        # print(f"{row[0]}" if row else "Endereço não encontrado.")  # -- Testar
         return row[0] if row else None
     finally:
         conn.close()
@@ -214,7 +215,8 @@ def verifica_cep(cep):
             SELECT
                 IdBairro,
                 IdCidade,         
-                NmLogradouro
+                NmLogradouro,
+                TpLogradouro
             FROM
                 CEP
             WHERE 
@@ -223,7 +225,7 @@ def verifica_cep(cep):
             (cep),
         )
         row = cursor.fetchone()
-        print(f"{row}" if row else "Cep não encontrado.")  # -- Testar
+        # print(f"{row}" if row else "Cep não encontrado.")  # -- Testar
         return row if row else None
     finally:
         conn.close()
@@ -247,7 +249,7 @@ def verifica_contato(id_pessoa, contato):
             (id_pessoa, contato),
         )
         row = cursor.fetchone()
-        print(f"{row[0]}" if row else "Contato não encontrado.")  # -- Testar
+        # print(f"{row[0]}" if row else "Contato não encontrado.")  # -- Testar
         return row[0] if row else None
     finally:
         conn.close()
@@ -270,7 +272,7 @@ def verifica_pedido_importado(cd_pedido):
             (cd_pedido,),
         )
         row = cursor.fetchone()
-        print(f"{row[0]}" if row else "Pedido não encontrado.")  # -- Testar
+        # print(f"{row[0]}" if row else "Pedido não encontrado.")  # -- Testar
         return row[0] if row else None
     finally:
         conn.close()
@@ -284,16 +286,23 @@ def verifica_produto_kit(cd_produto):
         cursor.execute(
             """
             SELECT 
-                Product_Variant_Kit
-            FROM
-                ShopifyIntegration.Product_Variants
-            WHERE
-                Sku = ?
+                CASE 
+                    WHEN COUNT(*) > 0 THEN 1 
+                    ELSE 0 
+                END AS TemComposicao
+            FROM 
+                Produto_Composicao PC
+            INNER JOIN 
+                CodigoProduto CP ON CP.IdProduto = PC.IdProduto AND CP.StCodigoPrincipal = 'S'
+            INNER JOIN 
+                Produto P ON P.IdProduto = CP.IdProduto
+            WHERE 
+                CP.CdChamada = ? AND P.TpProduto NOT IN ('N');
             """,
             (cd_produto),
         )
         row = cursor.fetchone()
-        print(f"{row[0]}" if row else "Produto sem partes")  # -- Testar
+        # print(f"{row[0]}" if row else "Produto sem partes")  # -- Testar
         return row[0] if row else None
     finally:
         conn.close()
@@ -301,11 +310,11 @@ def verifica_produto_kit(cd_produto):
 
 # TESTES --
 
-# verifica_cep("21610-320")  # Testar verifica cep
+# verifica_cep("20550-201")  # Testar verifica cep
 
-# verifica_cliente("16166215754")  # Testar verifica cliente
+# verifica_cliente("053.987.427-28")  # Testar verifica cliente
 
-# verifica_bairro("marechal hermes")  # Testar verifica bairro
+# verifica_bairro("VILA ISABEL")  # Testar verifica bairro
 
 # verifica_cidade("Rio de Janeiro", "RJ")  # Testar verifica cidade
 
@@ -313,7 +322,7 @@ def verifica_produto_kit(cd_produto):
 
 # verifica_contato("00A000MJ8D", "Hugo Bourguignon Rangel")  # Testar verifica endereço
 
-# verifica_produto_kit('830144') #Testas verifica se tem kit
+# verifica_produto_kit('720050') #Testas verifica se tem kit
 
 # \\\\\\\\\\\\\\\\\\\\\\\\\\\ ------------- INSERÇÕES ------------ \\\\\\\\\\\\\\\\\\\\\\\\\\\\
 
@@ -330,11 +339,7 @@ def cadastra_cliente(id_pessoa, cd_pessoa, nm_pessoa, cpf_cnpj, tp_pessoa):
             VALUES
             (?,?,?,?,?)
             """,
-            id_pessoa,
-            cd_pessoa,
-            nm_pessoa,
-            cpf_cnpj,
-            tp_pessoa,
+            (id_pessoa, cd_pessoa, nm_pessoa, cpf_cnpj, tp_pessoa),
         )
 
         cursor.execute(
@@ -344,7 +349,7 @@ def cadastra_cliente(id_pessoa, cd_pessoa, nm_pessoa, cpf_cnpj, tp_pessoa):
             VALUES
             (?)
             """,
-            id_pessoa,
+            (id_pessoa),
         )
 
         cursor.execute(
@@ -354,7 +359,7 @@ def cadastra_cliente(id_pessoa, cd_pessoa, nm_pessoa, cpf_cnpj, tp_pessoa):
             VALUES
             (?)
             """,
-            id_pessoa,
+            (id_pessoa),
         )
         conn.commit()
         return 1
@@ -378,9 +383,7 @@ def cadastra_bairro(id_bairro, cd_bairro, nm_bairro):
             VALUES 
             (?, ?, ?)
             """,
-            id_bairro,
-            cd_bairro,
-            nm_bairro,
+            (id_bairro, cd_bairro, nm_bairro),
         )
         conn.commit()
         return 1
@@ -403,10 +406,7 @@ def cadastra_cidade(id_cidade, cd_cidade, nm_cidade, uf):
             (IDCIDADE, CDCHAMADA, NMCIDADE, IDUF) 
             VALUES (?, ?, ?, ?)
             """,
-            id_cidade,
-            cd_cidade,
-            nm_cidade,
-            uf,
+            (id_cidade, cd_cidade, nm_cidade, uf),
         )
         conn.commit()
         return 1
@@ -485,18 +485,20 @@ def cadastra_endereco(
                 9
             )
             """,
-            id_pessoa,
-            cd_endereco,
-            id_pessoa2,
-            nm_logradouro,
-            nr_logardouro,
-            ds_complemento,
-            cep,
-            id_bairro,
-            cpf_cnpj,
-            id_cidade,
-            uf,
-            nm_pessoa,
+            (
+                id_pessoa,
+                cd_endereco,
+                id_pessoa2,
+                nm_logradouro,
+                nr_logardouro,
+                ds_complemento,
+                cep,
+                id_bairro,
+                cpf_cnpj,
+                id_cidade,
+                uf,
+                nm_pessoa,
+            ),
         )
         conn.commit()
         return 1
@@ -520,10 +522,7 @@ def cadastra_contato(id_contato, id_pessoa, cd_endereco, nm_pessoa):
             VALUES
             (?,?,RTRIM(LTRIM(SUBSTRING(?, 1, 2))),RTRIM(LTRIM(SUBSTRING(?, 1, 50))),'S')
             """,
-            id_contato,
-            id_pessoa,
-            cd_endereco,
-            nm_pessoa,
+            (id_contato, id_pessoa, cd_endereco, nm_pessoa),
         )
         conn.commit()
         return 1
@@ -559,10 +558,7 @@ def cadastra_tipo_contato(id_contato, cd_endereco, id_pessoa, email, telefone):
                     ?
                 )
             """,
-            id_contato,
-            cd_endereco,
-            id_pessoa,
-            email,
+            (id_contato, cd_endereco, id_pessoa, email),
         )
 
         cursor.execute(
@@ -584,10 +580,7 @@ def cadastra_tipo_contato(id_contato, cd_endereco, id_pessoa, email, telefone):
                     ?
                 )
             """,
-            id_contato,
-            cd_endereco,
-            id_pessoa,
-            email,
+            (id_contato, cd_endereco, id_pessoa, email),
         )
 
         cursor.execute(
@@ -609,10 +602,7 @@ def cadastra_tipo_contato(id_contato, cd_endereco, id_pessoa, email, telefone):
                     ?
                 )
             """,
-            id_contato,
-            cd_endereco,
-            id_pessoa,
-            email,
+            (id_contato, cd_endereco, id_pessoa, email),
         )
 
         cursor.execute(
@@ -634,10 +624,7 @@ def cadastra_tipo_contato(id_contato, cd_endereco, id_pessoa, email, telefone):
                     ?
                 )
             """,
-            id_contato,
-            cd_endereco,
-            id_pessoa,
-            email,
+            (id_contato, cd_endereco, id_pessoa, email),
         )
 
         cursor.execute(
@@ -659,10 +646,7 @@ def cadastra_tipo_contato(id_contato, cd_endereco, id_pessoa, email, telefone):
                     ?
                 )
             """,
-            id_contato,
-            cd_endereco,
-            id_pessoa,
-            email,
+            (id_contato, cd_endereco, id_pessoa, email),
         )
 
         cursor.execute(
@@ -684,10 +668,7 @@ def cadastra_tipo_contato(id_contato, cd_endereco, id_pessoa, email, telefone):
                     REPLACE(?, '+55', '')
                 )
             """,
-            id_contato,
-            cd_endereco,
-            id_pessoa,
-            telefone,
+            (id_contato, cd_endereco, id_pessoa, telefone),
         )
         conn.commit()
         return 1
@@ -709,6 +690,7 @@ def insere_pedido_venda(
     cd_pedido_shopify,
     id_setor_endereco,
     obs_pedido,
+    obs_documento
 ):
     """Insere o novo pedido de venda"""
     conn = get_db_connection()
@@ -725,6 +707,7 @@ def insere_pedido_venda(
                 CdEmpresaEstoque,
                 CdEmpresaFinanceiro,
                 IdPessoaCliente,
+                IdPessoaEntrega,
                 CdEnderecoPrincipal,
                 CdEnderecoCobranca,
                 CdEnderecoEntrega,
@@ -737,7 +720,7 @@ def insere_pedido_venda(
                 IdSetor,
                 StPedidoDeVenda,
                 IdPreco,
-                DsObservacaoDocumento,
+                DsObservacaoPedido,
                 IdMeioContato,
                 IdUsuario,
                 TpFretePorConta,
@@ -749,7 +732,9 @@ def insere_pedido_venda(
                 StFaturadoTerceiros,
                 DtReferenciaPagamento,
                 IdSistema,
-                TpIndAtendimentoPresencial
+                TpIndAtendimentoPresencial,
+                DsObservacaoDocumento,
+                TpIndicativoIntermediador
             )
             VALUES
             (
@@ -758,6 +743,7 @@ def insere_pedido_venda(
                 '97',
                 ?,
                 '97',
+                ?,
                 ?,
                 ?,
                 ?,
@@ -771,7 +757,7 @@ def insere_pedido_venda(
                 ?,
                 'A', 
                 '00A0000002',
-                @Observacao,
+                ?,
                 '00A000053Z',
                 '00A0000001',
                 'D',
@@ -783,20 +769,26 @@ def insere_pedido_venda(
                 'N',
                 CONVERT(varchar(10), GETDATE(), 120),
                 '0000000023',
-                2
+                2,
+                ?,
+                0
             )
             """,
-            id_pedido,
-            cd_pedido,
-            cd_empresa,
-            id_pessoa,
-            cd_endereco,
-            cd_endereco,
-            cd_endereco,
-            dt_emissao,
-            cd_pedido_shopify,
-            id_setor_endereco,
-            obs_pedido,
+            (
+                id_pedido,
+                cd_pedido,
+                cd_empresa,
+                id_pessoa,
+                id_pessoa,
+                cd_endereco,
+                cd_endereco,
+                cd_endereco,
+                dt_emissao,
+                cd_pedido_shopify,
+                id_setor_endereco,
+                obs_pedido,
+                obs_documento
+            ),
         )
 
         cursor.execute(
@@ -816,14 +808,14 @@ def insere_pedido_venda(
                 ,'Importação de pedido do site (Shopify)'
             )
             """,
-            id_pedido,
+            (id_pedido),
         )
 
         conn.commit()
         return 1
     except Exception as e:
         conn.rollback()
-        print(f"Erro ao cadastrar cidade: {e}")
+        print(f"Erro ao cadastrar Pedido de Venda: {e}")
         return 0
     finally:
         conn.close()
@@ -909,26 +901,28 @@ def insere_pedido_venda_item(
                 'N'
             )
             """,
-            id_pedido_venda,
-            id_pedido_venda_item,
-            id_produto_bimer,
-            qtd_pedida,
-            vl_unitario,
-            vl_item,
-            vl_acrescimo,
-            vl_descontos,
-            vl_despesas,
-            id_setor_endereco,
-            cfop,
-            vl_peso_bruto,
-            vl_peso_liquido,
+            (
+                id_pedido_venda,
+                id_pedido_venda_item,
+                id_produto_bimer,
+                qtd_pedida,
+                vl_unitario,
+                vl_item,
+                vl_acrescimo,
+                vl_descontos,
+                vl_despesas,
+                id_setor_endereco,
+                cfop,
+                vl_peso_bruto,
+                vl_peso_liquido,
+            ),
         )
 
         conn.commit()
         return 1
     except Exception as e:
         conn.rollback()
-        print(f"Erro ao cadastrar cidade: {e}")
+        print(f"Erro ao cadastrar Pedido de Venda Item: {e}")
         return 0
     finally:
         conn.close()
@@ -945,22 +939,26 @@ def pega_composicao_produto(sku):
         cursor.execute(
             """
             SELECT 
-                SPVK.Bimer_ProductId,
-                ProductQuantity,
-                SPVK.UnitPrice,
-				P.VlPesoBruto,
+                pc.IdProdutoIntegrante,
+                pc.QtProdutoIntegrante,
+                pep.VlPreco,
+                P.VlPesoBruto,
                 P.VlPesoLiquido
             FROM 
-                ShopifyIntegration.Product_Variants_Kit SPVK
-                INNER JOIN ShopifyIntegration.Product_Variants SPV ON SPV.Id = SPVK.Product_Variants_Id
-				INNER JOIN Produto P ON P.IdProduto = SPV.Bimer_ProductId
+                ShopifyIntegration.Product_Variants SPV
+                INNER JOIN 
+                    Produto_Composicao pc ON pc.IdProduto = SPV.Bimer_ProductId 
+                INNER JOIN 
+                    vw_ProdutoEmpresaPreco pep ON pep.IdProduto = pc.IdProdutoIntegrante AND pep.CdEmpresa = '1000' AND CdPreco = '01'
+                INNER JOIN 
+                    Produto P ON P.IdProduto = SPV.Bimer_ProductId
             WHERE
                 SPV.Sku = ?
             """,
             (sku),
         )
         row = cursor.fetchall()
-        print(row)  # -- Testar
+        # print(row)  # -- Testar
         return row if row else None
     finally:
         conn.close()
@@ -984,7 +982,7 @@ def pega_dados_produto(sku):
             WHERE
                 SPV.Sku = ?
             """,
-            (sku,),
+            (sku),
         )
         row = cursor.fetchone()
         # print(row)  # -- Testar
@@ -995,7 +993,7 @@ def pega_dados_produto(sku):
 
 # pega_dados_produto('830144') #Testa dados do produto
 
-# item_composicao = pega_composicao_produto('421068') #Testa compisições do produto
+# pega_composicao_produto('720050') #Testa compisições do produto
 
 # \\\\\\\\\\\\\\\\\\\\\\\\\\\ ------------- ATUALIZAÇÔES ------------ \\\\\\\\\\\\\\\\\\\\\\\\\\\\
 
@@ -1040,26 +1038,28 @@ def atualiza_endereco(
             UPDATE 
                 PessoaEndereco_Contato 
             SET 
-                sContato = RTRIM(LTRIM(SUBSTRING(?, 1, 50))),
+                DsContato = RTRIM(LTRIM(SUBSTRING(?, 1, 50))),
                 StContatoPrincipal = 'S'
             WHERE 
                 (IdPessoaEndereco_Contato = ?) AND 
                 (CdEndereco = ?)
             """,
-            nm_logradouro,
-            nr_logradouro,
-            complemento,
-            cep,
-            id_bairro,
-            cpf_cnpj,
-            id_cidade,
-            id_uf,
-            nm_pessoa,
-            id_pessoa,
-            cd_endereco,
-            ds_contato,
-            id_contato,
-            cd_endereco,
+            (
+                nm_logradouro,
+                nr_logradouro,
+                complemento,
+                cep,
+                id_bairro,
+                cpf_cnpj,
+                id_cidade,
+                id_uf,
+                nm_pessoa,
+                id_pessoa,
+                cd_endereco,
+                ds_contato,
+                id_contato,
+                cd_endereco,
+            ),
         )
         conn.commit()
         return 1

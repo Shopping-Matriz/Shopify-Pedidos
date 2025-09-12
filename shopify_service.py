@@ -11,7 +11,6 @@ RED = "\033[91m"  # Vermelho claro
 BOLD = "\033[1m"  # Negrito
 RESET = "\033[0m"  # Resetar para estilo padrão
 
-# NOT tag:Integrado
 
 def pegar_pedidos_pagos(first=125):
     """Busca pedidos não Pagos e ainda não Importados no Shopify usando GraphQL."""
@@ -22,12 +21,13 @@ query GetUnprocessedOrders($first: Int!) {
 		first: $first,
 		sortKey: CREATED_AT,
 		reverse: true,
-		query: "financial_status:EXPIRED AND fulfillment_status:UNFULFILLED AND name:2117 "
+		query: "financial_status:PAID AND fulfillment_status:UNFULFILLED AND status:OPEN AND NOT tag:'✔ Integrado'"
 	) {
 		edges {
       node {
         id,
         name,
+				note,
         totalPriceSet {
 					shopMoney {
 						amount
@@ -59,9 +59,13 @@ query GetUnprocessedOrders($first: Int!) {
 				displayFinancialStatus,
 				tags,
 				note,
+				phone,
 				customer {
 					id,
 					displayName,
+					defaultPhoneNumber {
+						phoneNumber
+					},
 					defaultEmailAddress {
 						emailAddress
 					},
@@ -90,7 +94,8 @@ query GetUnprocessedOrders($first: Int!) {
 					country,
 					province,
 					provinceCode,
-					formattedArea
+					formattedArea,
+					phone
 				},
 				shippingAddress{
 					address1,
@@ -101,8 +106,12 @@ query GetUnprocessedOrders($first: Int!) {
 					country,
 					province,
 					provinceCode,
-					formattedArea
+					formattedArea,
+					phone
 				},
+				shippingLine{
+					title,					
+				}
         transactions (first:100) {
           amountSet {
 						shopMoney {
@@ -116,9 +125,10 @@ query GetUnprocessedOrders($first: Int!) {
           gateway
 					paymentDetails {
 						... on CardPaymentDetails {
+								paymentMethodName,
 								company,
-                paymentMethodName,
-								expirationMonth,
+								name,
+								number,
 						}
 					}
 				},
@@ -126,10 +136,15 @@ query GetUnprocessedOrders($first: Int!) {
           edges {
             node {
 							id,
-              				title,
+              title,
 							sku,
 							quantity,
 							vendor,
+              variant{
+								id
+								compareAtPrice
+								price
+							},
 							discountedUnitPriceAfterAllDiscountsSet{
 								presentmentMoney{
 									amount,
@@ -164,14 +179,13 @@ query GetUnprocessedOrders($first: Int!) {
         },
         timeout=10,
     )
-
     if response.status_code == 200:
         data = response.json()
         edges = data.get("data", {}).get("orders", {}).get("edges", [])
         pedido_info = [
             {"id": edge["node"]["id"], "name": edge["node"]["name"]}
             for edge in edges
-            if "node" in edge and "id" in edge["node"] and "name" in edge["node"]
+            if "node" in edge and "id" in edge["node"] and "name" in edge["node"]	
         ]
         print(
             f"{BOLD}{GREEN}\n🟢 Pegando pedidos não Integrados | [{current_time}] {RESET}"
@@ -187,13 +201,37 @@ query GetUnprocessedOrders($first: Int!) {
         return []
 
 
-def adicionar_tag_integrado(order_gid):
+def pegar_tags_existentes(order_gid):
     headers = {
         "Content-Type": "application/json",
         "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN,
     }
+    query = """
+    query getOrderTags($id: ID!) {
+      order(id: $id) {
+        id
+        tags
+      }
+    }
+    """
+    response = requests.post(
+        SHOPIFY_API_URL,
+        json={"query": query, "variables": {"id": order_gid}},
+        headers=headers,
+    )
+    data = response.json()
+    if response.status_code != 200 or data.get("errors"):
+        print("Erro ao buscar tags:", response.text)
+        return []
+    return data["data"]["order"]["tags"]
 
-    # Mutação GraphQL para adicionar a tag "Integrado"
+
+def adicionar_tag_integrado(order_gid, eh_cartao):
+    existing_tags = pegar_tags_existentes(order_gid)
+    if "Integrado" not in existing_tags:
+        existing_tags.append("✔ Integrado")
+        if eh_cartao:
+            existing_tags.append("💳 Verificar")
     mutation = """
     mutation orderUpdate($input: OrderInput!) {
         orderUpdate(input: $input) {
@@ -208,29 +246,30 @@ def adicionar_tag_integrado(order_gid):
         }
     }
     """
-
-    # Você pode sobrescrever as tags aqui. Se quiser manter tags existentes,
-    # é necessário buscá-las primeiro. Neste exemplo, só adiciona "Integrado".
-    variables = {"input": {"id": order_gid, "tags": "Integrado"}}
-
+    variables = {"input": {"id": order_gid, "tags": existing_tags}}
+    headers = {
+        "Content-Type": "application/json",
+        "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN,
+    }
     response = requests.post(
         SHOPIFY_API_URL,
         json={"query": mutation, "variables": variables},
         headers=headers,
     )
-    if response.status_code != 200:
-        print("Erro HTTP:", response.status_code, response.text)
-        return None
-
     data = response.json()
-    if data.get("errors") or data["data"]["orderUpdate"]["userErrors"]:
-        print("Erro GraphQL:", data)
+    if (
+        response.status_code != 200
+        or data.get("errors")
+        or data["data"]["orderUpdate"]["userErrors"]
+    ):
+        print("Erro ao atualizar tags:", response.text)
         return None
-
     return data["data"]["orderUpdate"]["order"]
 
 
 # -- TESTES --
 # pegar_pedidos_pagos()  # Para Testar pegar pedidos
 
-# adicionar_tag_integrado('gid://shopify/Order/6061713064018') # Para Testar adicionar tag
+# adicionar_tag_integrado('gid://shopify/Order/6504590311506') # Para Testar adicionar tag
+
+# pegar_tags_existentes('gid://shopify/Order/6504590311506')  # Para Testar pegar tags

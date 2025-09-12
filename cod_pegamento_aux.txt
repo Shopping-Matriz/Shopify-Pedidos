@@ -1,0 +1,38 @@
+AINDA ESTÁ EM CONSTRUÇÃO
+detalhes_cartao = info_pagamento["paymentDetails"]
+        if gateway_pagamento == "Pagar.me - PIX":
+            id_forma_pagamento = "00A000009K"
+            cd_forma_pagamento = "000132"
+            ds_forma_pagamento = "PIX PAGAR.ME"
+            vl_titulo =  vl_total - 0.09 * vl_total
+            nr_dias = 0
+            nr_dias_recebimento = 2
+            nr_parcelas_recebimento = 1
+            st_atualiza_financeiro = "S"
+        if gateway_pagamento == "Pagar.me - Cartão de Crédito":
+            vl_titulo =  vl_total
+            nr_dias = 0
+            nr_dias_recebimento = 30
+            nr_dias_intervalo = 30
+            nr_parcelas_recebimento = 30
+            st_atualiza_financeiro = "S"
+            if detalhes_cartao["company"] == "Mastercard":
+                id_forma_pagamento = '00A000009B'
+                cd_forma_pagamento = "000127"
+                ds_forma_pagamento = "CARTÃO DE CRÉDITO PAGAR.ME (MASTER)"
+            if detalhes_cartao["company"] == "Visa":
+                id_forma_pagamento = '00A000009B'
+                cd_forma_pagamento = "000127"
+                ds_forma_pagamento = "CARTÃO DE CRÉDITO PAGAR.ME (MASTER)"
+            if detalhes_cartao["company"] == "American Express":
+                id_forma_pagamento = '00A000009B'
+                cd_forma_pagamento = "000127"
+                ds_forma_pagamento = "CARTÃO DE CRÉDITO PAGAR.ME (MASTER)"
+            if detalhes_cartao["company"] == "Diners Club":
+                id_forma_pagamento = '00A000009B'
+                cd_forma_pagamento = "000127"
+                ds_forma_pagamento = "CARTÃO DE CRÉDITO PAGAR.ME (MASTER)" 
+            if detalhes_cartao["company"] == "Elo": 
+                id_forma_pagamento = '00A000009B'
+                cd_forma_pagamento = "000127"
+                ds_forma_pagamento = "CARTÃO DE CRÉDITO PAGAR.ME (MASTER)"
