@@ -40,7 +40,7 @@ def integrar_pedidos():
         if tp_cliente == "F":
             nome_cliente = dados_cliente["displayName"].upper()
         elif tp_cliente == "J":
-            nome_cliente = (dados_cliente.get("defaultEmailAddress") or "").upper() or (
+            nome_cliente = (dados_endereco_entrega.get("company") or "").upper() or (
                 dados_cliente.get("displayName") or ""
             ).upper()
         else:
