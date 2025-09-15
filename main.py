@@ -99,7 +99,7 @@ def integrar_pedidos():
             dados_endereco_entrega["address1"]
         )
         endereco_2 = dados_endereco_entrega.get("address2", "") or ""
-        complemento = endereco_2.split(",", 1)[0].strip()
+        complemento =  re.sub(r"^[^\wÀ-ÿ]+", "",endereco_2.split(",", 1)[0].strip())
         cd_endereco = verifica_endereco(
             id_pessoa, dados_endereco_entrega["zip"], nm_logradouro, nr_logradouro
         )
@@ -187,11 +187,11 @@ def integrar_pedidos():
         prox_pedido = pega_prox_ident_cod(
             "PedidoDeVenda", "IdPedidoDeVenda", "IdPedidoDeVenda"
         )
-        obs_cliente = (
-            dados_pedido["note"]
-            if dados_pedido["note"]
-            else "Sem observações do Cliente"
-        )
+        # obs_cliente = (
+        #     dados_pedido["note"]
+        #     if dados_pedido["note"]
+        #     else "Sem observações do Cliente"
+        # )
         obs_pagamento = (
             f"{gateway_pagamento} {info_pagamento.get('paymentDetails', {}).get('company','')}({info_pagamento.get('paymentDetails', {}).get('number','')[-4:]})"
             if gateway_pagamento and "cartão" in gateway_pagamento.lower()
@@ -203,7 +203,7 @@ def integrar_pedidos():
             obs_retirada = f"retirada - {titulo}"
         else:
             obs_retirada = titulo
-        obs_pedido = f"OBS CLIENTE: {obs_cliente.upper()}\n{obs_pagamento.upper()}\n{obs_retirada.upper()}"
+        obs_pedido = f"{obs_pagamento.upper()}\n{obs_retirada.upper()}" # OBS CLIENTE: {obs_cliente.upper()}\n
         insere_pedido_venda(
             prox_pedido[0],
             prox_pedido[1],
