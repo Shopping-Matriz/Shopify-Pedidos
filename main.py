@@ -40,10 +40,9 @@ def integrar_pedidos():
         if tp_cliente == "F":
             nome_cliente = dados_cliente["displayName"].upper()
         elif tp_cliente == "J":
-            nome_cliente = (
-                dados_endereco_entrega.get("company").upper()
-                or dados_cliente["displayName"].upper()
-            )
+            nome_cliente = (dados_cliente.get("defaultEmailAddress") or "").upper() or (
+                dados_cliente.get("displayName") or ""
+            ).upper()
         else:
             nome_cliente = dados_cliente["displayName"].upper()
         if cpf_cnpj_formatado:
@@ -99,7 +98,7 @@ def integrar_pedidos():
             dados_endereco_entrega["address1"]
         )
         endereco_2 = dados_endereco_entrega.get("address2", "") or ""
-        complemento =  re.sub(r"^[^\wÀ-ÿ]+", "",endereco_2.split(",", 1)[0].strip())
+        complemento = re.sub(r"^[^\wÀ-ÿ]+", "", endereco_2.split(",", 1)[0].strip())
         cd_endereco = verifica_endereco(
             id_pessoa, dados_endereco_entrega["zip"], nm_logradouro, nr_logradouro
         )
@@ -203,7 +202,7 @@ def integrar_pedidos():
             obs_retirada = f"retirada - {titulo}"
         else:
             obs_retirada = titulo
-        obs_pedido = f"{obs_pagamento.upper()}\n{obs_retirada.upper()}" # OBS CLIENTE: {obs_cliente.upper()}\n
+        obs_pedido = f"{obs_pagamento.upper()}\n{obs_retirada.upper()}"  # OBS CLIENTE: {obs_cliente.upper()}\n
         insere_pedido_venda(
             prox_pedido[0],
             prox_pedido[1],
@@ -347,11 +346,14 @@ def integrar_pedidos():
         adicionar_tag_integrado(dados_pedido["id"], eh_cartão)
     print("\n\n⏳ Aguardando próximas execuções...")
 
+
 # ______________________________/// Inicialização / Agendamento ///____________________________________
 
 print("\n🔰 Sistema de integração iniciado ")
 integrar_pedidos()
-schedule.every(10).minutes.do(integrar_pedidos) # <-- Agendar a função para rodar a cada 10 minutos
+schedule.every(10).minutes.do(
+    integrar_pedidos
+)  # <-- Agendar a função para rodar a cada 10 minutos
 while True:
     schedule.run_pending()
-    time.sleep(1)   
+    time.sleep(1)
