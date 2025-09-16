@@ -5,6 +5,7 @@ import schedule
 from sqlalchemy import Case, desc
 
 from auxiliar import *
+from representantes import *
 from shopify_service import *
 from alterdata_service import *
 
@@ -114,7 +115,7 @@ def integrar_pedidos():
             id_contato = prox_contato
             cadastra_tipo_contato(
                 id_contato,
-                cd_endereco_contato,
+                cd_endereco_contato if not cd_endereco else cd_endereco,
                 id_pessoa,
                 (dados_cliente.get("defaultEmailAddress") or {}).get("emailAddress", "")
                 or "",
@@ -175,6 +176,9 @@ def integrar_pedidos():
         #         nome_cliente,
         #         id_contato,
         #     )
+        # --------------------/// Representante ///----------------
+        tags = dados_pedido["tags"]
+        id_representante = pegar_representante(tags)
         # --------------------/// Pedido ///----------------
         if tp_cliente == "F":
             id_setor_endereco = "00A0000046"
@@ -309,6 +313,7 @@ def integrar_pedidos():
                         peso_b,
                         peso_l,
                     )
+                    cadastra_representante_pvi(prox_item, id_representante)
             else:
                 prox_item = pega_prox_ident(
                     "PedidoDeVendaItem", "IdPedidoDeVendaItem", "IdPedidoDeVendaItem"
@@ -334,6 +339,7 @@ def integrar_pedidos():
                     dados_produto[1],
                     dados_produto[2],
                 )
+                cadastra_representante_pvi(prox_item, id_representante)
         # --------------------/// Pagamento ///----------------
         # add cod_pagamentpo_aux.txt se for adicionar pagamentos na integração
         if "cartão" in gateway_pagamento.lower():

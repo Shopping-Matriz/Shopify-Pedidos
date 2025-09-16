@@ -297,7 +297,7 @@ def verifica_produto_kit(cd_produto):
             INNER JOIN 
                 Produto P ON P.IdProduto = CP.IdProduto
             WHERE 
-                CP.CdChamada = ? AND P.TpProduto NOT IN ('N');
+                CP.CdChamada = ? AND P.StProdutoComposto = 'S' AND P.StProdutoCompostoKIT = 'S';
             """,
             (cd_produto),
         )
@@ -322,7 +322,7 @@ def verifica_produto_kit(cd_produto):
 
 # verifica_contato("00A000MJ8D", "Hugo Bourguignon Rangel")  # Testar verifica endereço
 
-# verifica_produto_kit('720050') #Testas verifica se tem kit
+# verifica_produto_kit('450723') #Testas verifica se tem kit
 
 # \\\\\\\\\\\\\\\\\\\\\\\\\\\ ------------- INSERÇÕES ------------ \\\\\\\\\\\\\\\\\\\\\\\\\\\\
 
@@ -750,9 +750,9 @@ def insere_pedido_venda(
                 ?,
                 '00A000007V',
                 '00A00000N6',
-                Getdate(),
+                CAST(GETDATE() AS DATE),
                 ?, 
-                DATEADD(HOUR, 14, CAST(CAST(DATEADD(DAY, 5, GETDATE()) AS DATE) AS DATETIME)),
+                CAST(DATEADD(DAY, 5, GETDATE()) AS DATE),
                 ?,
                 ?,
                 'A', 
@@ -928,6 +928,48 @@ def insere_pedido_venda_item(
         conn.close()
 
 
+def cadastra_representante_pvi(
+    id_pedido_venda_item,
+    id_representante
+):
+    """Cadastra o representante em um pedido de venda item"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute(
+            """
+            INSERT INTO Representante_PedidoDeVendaIte 
+            (
+                IdPessoaRepresentante,
+                IdPedidoDeVendaItem,  
+                AlComissaoFaturamento,
+                IdCategoria
+            )
+            VALUES
+            (
+                ?,
+                ?,
+                '1',
+                '0000000004' 
+            )
+            """,
+            (
+                id_representante,
+                id_pedido_venda_item,
+            ),
+        )
+
+        conn.commit()
+        return 1
+    except Exception as e:
+        conn.rollback()
+        print(f"Erro ao cadastrar representante de venda no item: {e}")
+        return 0
+    finally:
+        conn.close()
+
+
 # \\\\\\\\\\\\\\\\\\\\\\\\\\\ ------------- PEGAR DADOS ------------ \\\\\\\\\\\\\\\\\\\\\\\\\\\\
 
 
@@ -993,7 +1035,7 @@ def pega_dados_produto(sku):
 
 # pega_dados_produto('830144') #Testa dados do produto
 
-# pega_composicao_produto('720050') #Testa compisições do produto
+# pega_composicao_produto('450723') #Testa compisições do produto
 
 # \\\\\\\\\\\\\\\\\\\\\\\\\\\ ------------- ATUALIZAÇÔES ------------ \\\\\\\\\\\\\\\\\\\\\\\\\\\\
 
