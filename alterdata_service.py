@@ -431,6 +431,7 @@ def cadastra_endereco(
     id_cidade,
     uf,
     nm_pessoa,
+    tp_logradouro
 ):
     """Cadastra um novo endereço no banco."""
     conn = get_db_connection()
@@ -459,7 +460,8 @@ def cadastra_endereco(
                 NmPessoa,
                 StAtivo,
                 IdPais,
-                TpContribuicaoICMS
+                TpContribuicaoICMS,
+                TpLogradouro
             )
             VALUES
             (
@@ -482,7 +484,8 @@ def cadastra_endereco(
                 RTRIM(LTRIM(SUBSTRING(?, 1, 50))),
                 'S',
                 '076',
-                9
+                9,
+                ?
             )
             """,
             (
@@ -498,6 +501,7 @@ def cadastra_endereco(
                 id_cidade,
                 uf,
                 nm_pessoa,
+                tp_logradouro,
             ),
         )
         conn.commit()
@@ -560,95 +564,6 @@ def cadastra_tipo_contato(id_contato, cd_endereco, id_pessoa, email, telefone):
             """,
             (id_contato, cd_endereco, id_pessoa, email),
         )
-
-        cursor.execute(
-            """
-            INSERT INTO PessoaEndereco_TipoContato
-                (
-                    IdPessoaEndereco_Contato,
-                    IdTipoContato,
-                    CdEndereco,
-                    IdPessoa,
-                    DsContato
-                )
-                VALUES
-                (
-                    ?,
-                    '0000000008',
-                    ?,
-                    ?,
-                    ?
-                )
-            """,
-            (id_contato, cd_endereco, id_pessoa, email),
-        )
-
-        cursor.execute(
-            """
-            INSERT INTO PessoaEndereco_TipoContato
-                (
-                    IdPessoaEndereco_Contato,
-                    IdTipoContato,
-                    CdEndereco,
-                    IdPessoa,
-                    DsContato
-                )
-                VALUES
-                (
-                    ?,
-                    '0000000009',
-                    ?,
-                    ?,
-                    ?
-                )
-            """,
-            (id_contato, cd_endereco, id_pessoa, email),
-        )
-
-        cursor.execute(
-            """
-            INSERT INTO PessoaEndereco_TipoContato
-                (
-                    IdPessoaEndereco_Contato,
-                    IdTipoContato,
-                    CdEndereco,
-                    IdPessoa,
-                    DsContato
-                )
-                VALUES
-                (
-                    ?,
-                    '0000000004',
-                    ?,
-                    ?,
-                    ?
-                )
-            """,
-            (id_contato, cd_endereco, id_pessoa, email),
-        )
-
-        cursor.execute(
-            """
-            INSERT INTO PessoaEndereco_TipoContato
-                (
-                    IdPessoaEndereco_Contato,
-                    IdTipoContato,
-                    CdEndereco,
-                    IdPessoa,
-                    DsContato
-                )
-                VALUES
-                (
-                    ?,
-                    '0000000012',
-                    ?,
-                    ?,
-                    ?
-                )
-            """,
-            (id_contato, cd_endereco, id_pessoa, email),
-        )
-
         cursor.execute(
             """
             INSERT INTO PessoaEndereco_TipoContato
@@ -690,7 +605,8 @@ def insere_pedido_venda(
     cd_pedido_shopify,
     id_setor_endereco,
     obs_pedido,
-    obs_documento
+    obs_documento,
+    id_unidade_negocio
 ):
     """Insere o novo pedido de venda"""
     conn = get_db_connection()
@@ -734,7 +650,8 @@ def insere_pedido_venda(
                 IdSistema,
                 TpIndAtendimentoPresencial,
                 DsObservacaoDocumento,
-                TpIndicativoIntermediador
+                TpIndicativoIntermediador,
+                IdUnidadeDeNegocio
             )
             VALUES
             (
@@ -771,7 +688,8 @@ def insere_pedido_venda(
                 '0000000023',
                 2,
                 ?,
-                0
+                0,
+                CASE WHEN ? = 0 THEN NULL ELSE ? END
             )
             """,
             (
@@ -787,7 +705,9 @@ def insere_pedido_venda(
                 cd_pedido_shopify,
                 id_setor_endereco,
                 obs_pedido,
-                obs_documento
+                obs_documento,
+                id_unidade_negocio,
+                id_unidade_negocio
             ),
         )
 

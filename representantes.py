@@ -12,7 +12,7 @@ def pegar_representante(tags: list[str] | None) -> str:
         "Bruno Bittencourt": "00A000L2FI",
         "Stefany Figueiredo": "00A000ML7M",
         "Anne Betta": "00A000MDJ7",
-        "Izabela Souza": "I00A000MVIG",
+        "Izabela Souza": "00A000MVIG",
         "Matheus Batista": "00A000MVKB",
         "Luana Pereira": "00A000MN6Q",
         "Liana Alves": "00A000MDP5",

@@ -2,7 +2,7 @@
 
 import time
 import schedule
-from sqlalchemy import Case, desc
+from sqlalchemy import Case, Null, desc, false
 
 from auxiliar import *
 from representantes import *
@@ -27,8 +27,11 @@ def integrar_pedidos():
                 f"{BOLD}{YELLOW}\n ! pedido [{cd_pedido_shopify}] já importado{RESET}"
             )
             continue
-        info_pagamento = dados_pedido["transactions"][0]
-        gateway_pagamento = info_pagamento["gateway"]
+        transactions = dados_pedido.get("transactions", [])
+        info_pagamento = next(
+            (t for t in reversed(transactions) if t.get("status") == "SUCCESS"), None
+        )
+        gateway_pagamento = info_pagamento["gateway"] if info_pagamento else None
         info_envio = dados_pedido["shippingLine"]
         # ---------------------------//// Cliente ////----------------------------
         dados_cliente = dados_pedido["customer"]
@@ -68,6 +71,7 @@ def integrar_pedidos():
             id_bairro = dados_cep[0] if dados_cep else None
             id_cidade = dados_cep[1] if dados_cep else None
             nm_logradouro = dados_cep[2] if dados_cep else None
+            tp_logradouro = dados_cep[3] if dados_cep else None
         else:
             dados_cep = obter_dados_cep(
                 re.sub(r"\D", "", dados_endereco_entrega["zip"])
@@ -104,32 +108,14 @@ def integrar_pedidos():
             id_pessoa, dados_endereco_entrega["zip"], nm_logradouro, nr_logradouro
         )
         id_contato = verifica_contato(id_pessoa, dados_cliente["displayName"].upper())
-        if not id_contato:
-            prox_contato = pega_prox_ident(
-                "PessoaEndereco_Contato",
-                "IdPessoaEndereco_Contato",
-                "IdPessoaEndereco_Contato",
-            )
-            if not cd_endereco:
-                cd_endereco_contato = pega_prox_coc_endereco(id_pessoa)
-            id_contato = prox_contato
-            cadastra_tipo_contato(
-                id_contato,
-                cd_endereco_contato if not cd_endereco else cd_endereco,
-                id_pessoa,
-                (dados_cliente.get("defaultEmailAddress") or {}).get("emailAddress", "")
-                or "",
-                (dados_endereco_entrega.get("phone") or "").replace("+55", "", 1)
-                or (dados_cliente.get("defaultPhoneNumber") or {}).get(
-                    "phoneNumber", ""
-                )
-                or "",
-            )
+        contato_cadastrado = false
         if not cd_endereco:
-            prox_endereco = pega_prox_coc_endereco(id_pessoa)
+            cd_endereco = pega_prox_coc_endereco(id_pessoa)
+            if not dados_cep:
+                tp_logradouro = ""
             cadastra_endereco(
                 id_pessoa,
-                prox_endereco,
+                cd_endereco,
                 id_pessoa,
                 nm_logradouro.upper(),
                 nr_logradouro,
@@ -140,17 +126,47 @@ def integrar_pedidos():
                 id_cidade,
                 dados_endereco_entrega["provinceCode"],
                 dados_cliente["displayName"].upper(),
+                tp_logradouro,
             )
-            cd_endereco = prox_endereco
-            prox_contato = pega_prox_ident(
+            id_pessoa_endereco_contato = pega_prox_ident(
                 "PessoaEndereco_Contato",
                 "IdPessoaEndereco_Contato",
                 "IdPessoaEndereco_Contato",
             )
-            id_contato = prox_contato
-            cadastra_tipo_contato(
-                id_contato,
+            cadastra_contato(
+                id_pessoa_endereco_contato,
+                id_pessoa,
                 cd_endereco,
+                dados_cliente["displayName"].upper(),
+            )
+            cadastra_tipo_contato(
+                id_pessoa_endereco_contato,
+                cd_endereco,
+                id_pessoa,
+                (dados_cliente.get("defaultEmailAddress") or {}).get("emailAddress", "")
+                or "",
+                (dados_endereco_entrega.get("phone") or "").replace("+55", "", 1)
+                or (dados_cliente.get("defaultPhoneNumber") or {}).get(
+                    "phoneNumber", ""
+                )
+                or "",
+            )
+            contato_cadastrado = true
+        if contato_cadastrado == False and not id_contato:
+            id_pessoa_endereco_contato = pega_prox_ident(
+                "PessoaEndereco_Contato",
+                "IdPessoaEndereco_Contato",
+                "IdPessoaEndereco_Contato",
+            )
+            cadastra_contato(
+                id_pessoa_endereco_contato,
+                id_pessoa,
+                cd_endereco,
+                dados_cliente["displayName"].upper(),
+            )
+            cadastra_tipo_contato(
+                id_pessoa_endereco_contato,
+                cd_endereco if not cd_endereco else cd_endereco,
                 id_pessoa,
                 (dados_cliente.get("defaultEmailAddress") or {}).get("emailAddress", "")
                 or "",
@@ -179,6 +195,10 @@ def integrar_pedidos():
         # --------------------/// Representante ///----------------
         tags = dados_pedido["tags"]
         id_representante = pegar_representante(tags)
+        if id_representante == "00A000M4XT":
+            id_unidade_negocio = 0
+        else:
+            id_unidade_negocio = 4
         # --------------------/// Pedido ///----------------
         if tp_cliente == "F":
             id_setor_endereco = "00A0000046"
@@ -220,6 +240,7 @@ def integrar_pedidos():
             dados_cliente["displayName"].upper()
             + " - "
             + (dados_endereco_entrega.get("phone") or "").replace("+55", "", 1),
+            id_unidade_negocio,
         )
         # --------------------/// Itens ///----------------
         vl_total = float(
