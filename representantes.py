@@ -39,6 +39,7 @@ def pegar_representante(tags: list[str] | None) -> str:
         "Márcia Schueler": "00A00004XY",
         "Paulino Nascimento": "00A000A97T",
         "Alice Oliveira": "00A000MYZA",
+        "Marcos Vinícius Lopes Vieira": "00A000MIC8"
     }
 
     if "Afiliado" not in tags:

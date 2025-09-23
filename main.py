@@ -15,9 +15,9 @@ def integrar_pedidos():
     pedidos = pegar_pedidos_pagos(first=125)
     if not pedidos:
         print(f"{BOLD}{YELLOW}\n🟡 Sem pedidos para integrar {RESET}")
-        print("\n\n⏳ Aguardando próximas execuções...")
+        print("\n\n⏳ Aguardando próximas execuções...\n")
         return
-    print(f"{BOLD}{GREEN}\n 💬 Iniciando integração de pedidos... {RESET}")
+    print(f"{BOLD}{GREEN}\n 💬  Iniciando integração de pedidos... {RESET}")
     for pedido in pedidos:
         dados_pedido = pedido["node"]
         pedidos_importado = verifica_pedido_importado(dados_pedido["name"].lstrip("#"))
@@ -66,6 +66,10 @@ def integrar_pedidos():
             continue
         # ----------------//// Cep, Endereço ,Cidade, Estado, Bairro e contato ////------------------
         dados_cep = verifica_cep(dados_endereco_entrega["zip"])
+        if not dados_cep:
+            print(
+                f"{BOLD}{YELLOW}\n ⚠  pedido [{cd_pedido_shopify}] com CEP não cadastrado no Bimer, usando ViaCep para validar dados{RESET}"
+            )
         nm_logradouro_cep = dados_cep[2] if dados_cep else None
         if dados_cep:
             id_bairro = dados_cep[0] if dados_cep else None
@@ -76,6 +80,11 @@ def integrar_pedidos():
             dados_cep = obter_dados_cep(
                 re.sub(r"\D", "", dados_endereco_entrega["zip"])
             )
+            if "erro" in dados_cep :
+                print(
+                    f"{BOLD}{RED}\n ❌ pedido [{cd_pedido_shopify}] não integrado, CEP inválido, ViaCep não conseguiu validar. Verifique Cep na Shopify{RESET}"
+                )
+                continue
             # --// cidade, estado //--
             id_cidade = verifica_cidade(
                 dados_endereco_entrega["city"], dados_endereco_entrega["provinceCode"]
@@ -90,7 +99,8 @@ def integrar_pedidos():
                 )
                 id_cidade = prox_cidade[0]
             # --// Bairro //--
-            id_bairro = verifica_bairro(dados_cep["bairro"].upper())
+            bairro = dados_cep.get("bairro", "")
+            id_bairro = verifica_bairro(bairro.upper())
             if not id_bairro:
                 prox_bairo = pega_prox_ident_cod("Bairro", "IdBairro", "IdBairro")
                 cadastra_bairro(
@@ -368,7 +378,7 @@ def integrar_pedidos():
         else:
             eh_cartão = 0
         print(
-            f"{BOLD}{GREEN}\n ✔ pedido [{cd_pedido_shopify}] integrado com sucesso{RESET}"
+            f"{BOLD}{GREEN} ✔  pedido [{cd_pedido_shopify}] integrado com sucesso\n{RESET}"
         )
         adicionar_tag_integrado(dados_pedido["id"], eh_cartão)
     print("\n\n⏳ Aguardando próximas execuções...")

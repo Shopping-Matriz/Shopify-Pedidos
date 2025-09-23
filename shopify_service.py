@@ -190,7 +190,7 @@ query GetUnprocessedOrders($first: Int!) {
         print(
             f"{BOLD}{GREEN}\n🟢 Pegando pedidos não Integrados | [{current_time}] {RESET}"
         )
-        print(f"\n {json.dumps(pedido_info, indent=2)}")
+        print(f"\n {json.dumps(pedido_info, indent=2)}\n")
         # print(edges)
         return edges
     else:
