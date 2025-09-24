@@ -121,7 +121,7 @@ def integrar_pedidos():
         contato_cadastrado = false
         if not cd_endereco:
             cd_endereco = pega_prox_coc_endereco(id_pessoa)
-            if not dados_cep:
+            if not nm_logradouro_cep:
                 tp_logradouro = ""
             cadastra_endereco(
                 id_pessoa,
