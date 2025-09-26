@@ -17,7 +17,7 @@ def integrar_pedidos():
         print(f"{BOLD}{YELLOW}\n🟡 Sem pedidos para integrar {RESET}")
         print("\n\n⏳ Aguardando próximas execuções...\n")
         return
-    print(f"{BOLD}{GREEN}\n 💬  Iniciando integração de pedidos... {RESET}")
+    print(f"{BOLD}{GREEN}\n 💬  Iniciando integração de pedidos... \n{RESET}")
     for pedido in pedidos:
         dados_pedido = pedido["node"]
         pedidos_importado = verifica_pedido_importado(dados_pedido["name"].lstrip("#"))
@@ -80,7 +80,7 @@ def integrar_pedidos():
             dados_cep = obter_dados_cep(
                 re.sub(r"\D", "", dados_endereco_entrega["zip"])
             )
-            if "erro" in dados_cep :
+            if "erro" in dados_cep:
                 print(
                     f"{BOLD}{RED}\n ❌ pedido [{cd_pedido_shopify}] não integrado, CEP inválido, ViaCep não conseguiu validar. Verifique Cep na Shopify{RESET}"
                 )
@@ -260,10 +260,15 @@ def integrar_pedidos():
         )
         itens = dados_pedido["lineItems"]["edges"]
         itens_filtrados = [
-            item for item in itens if item["node"]["title"] != "Serviço de Montagem"
+            item
+            for item in itens
+            if item["node"]["title"]
+            not in ["Serviço de Montagem", "Taxa de deslocamento"]
         ]
         itens_montagen = [
-            item for item in itens if item["node"]["title"] == "Serviço de Montagem"
+            item
+            for item in itens
+            if item["node"]["title"] in ["Serviço de Montagem", "Taxa de deslocamento"]
         ]
         qtd_itens = len(itens_filtrados)
         vl_frete_total = float(
@@ -279,22 +284,23 @@ def integrar_pedidos():
         if gateway_pagamento == "Pagar.me - PIX":
             vl_desconto_total = vl_desconto_total + 0.09 * vl_total
         vl_outros_total = (
-            float(
-                itens_montagen[0]["node"]["discountedUnitPriceAfterAllDiscountsSet"][
-                    "presentmentMoney"
-                ]["amount"]
+            sum(
+                float(
+                    item["node"]["discountedUnitPriceAfterAllDiscountsSet"][
+                        "presentmentMoney"
+                    ]["amount"]
+                )
+                * float(item["node"]["quantity"])
+                for item in itens_montagen
             )
-            * float(itens_montagen[0]["node"]["quantity"])
             if itens_montagen
             else 0
         )
         vl_frete_parcial = vl_frete_total / qtd_itens if qtd_itens > 0 else 0
         vl_desconto_parcial = vl_desconto_total / qtd_itens if qtd_itens > 0 else 0
         vl_outros_parcial = float(vl_outros_total) / qtd_itens if qtd_itens > 0 else 0
-        for item in itens:
+        for item in itens_filtrados:
             dados_item = item["node"]
-            if dados_item["title"] == "Serviço de Montagem":
-                continue
             kit = verifica_produto_kit(dados_item["sku"])
             variant_compare_at_price = float(
                 dados_item["variant"]["compareAtPrice"] or 0
