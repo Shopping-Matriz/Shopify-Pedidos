@@ -286,7 +286,7 @@ def integrar_pedidos():
         vl_outros_total = (
             sum(
                 float(
-                    item["node"]["discountedUnitPriceAfterAllDiscountsSet"][
+                    item["node"]["discountedUnitPriceSet"][
                         "presentmentMoney"
                     ]["amount"]
                 )
